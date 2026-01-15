@@ -140,15 +140,15 @@ class FoodSpawner {
     spawnDeathFood(snake) {
         const foods = [];
         
-        // Maximum food count = 2 * sct (official behavior)
+        // Maximum food count = 2 * sct
         const maxFoodCount = snake.sct * 2;
         
         // Snake scale (1 to 6)
         const sc = Math.min(6, 1 + (snake.sct - 2) / 106);
         
         // Food size range based on snake size
-        // Minimum: 68 (official minimum for death food)
-        // Maximum: scales with snake size (68 base + up to ~50 for large snakes)
+        // Minimum: 68 
+        // Maximum: scales with snake size
         const minSize = Constants.MIN_DEATH_FOOD_SIZE; // 68
         const maxSize = minSize + Math.floor(sc * 9); // 68-122 based on scale
         
@@ -225,7 +225,6 @@ class FoodSpawner {
                     const sideY = pos.y + Math.sin(perpAngle) * bodyWidth * side * 0.5;
                     const sideClamped = this.clamp(sideX, sideY);
                     
-                    // Side food is slightly smaller
                     const sideSize = Math.floor(size * 0.85);
                     
                     foods.push(new Food(
