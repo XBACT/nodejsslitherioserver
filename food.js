@@ -140,45 +140,108 @@ class FoodSpawner {
     spawnDeathFood(snake) {
         const foods = [];
         
-        const maxFoods = snake.sct * 2;
+        // Maximum food count = 2 * sct (official behavior)
+        const maxFoodCount = snake.sct * 2;
         
+        // Snake scale (1 to 6)
         const sc = Math.min(6, 1 + (snake.sct - 2) / 106);
-        const bodyRadius = 29 * sc / 2; 
         
-        const headFood = new Food(
-            snake.x,
-            snake.y,
-            Math.floor(Math.random() * Constants.FOOD_COLORS),
-            Constants.MIN_DEATH_FOOD_SIZE + Math.floor(Math.random() * 20)
-        );
-        foods.push(headFood);
+        // Food size range based on snake size
+        // Minimum: 68 (official minimum for death food)
+        // Maximum: scales with snake size (68 base + up to ~50 for large snakes)
+        const minSize = Constants.MIN_DEATH_FOOD_SIZE; // 68
+        const maxSize = minSize + Math.floor(sc * 9); // 68-122 based on scale
         
-        if (snake.parts.length > 0) {
-            for (let i = 0; i < snake.parts.length && foods.length < maxFoods; i++) {
-                const part = snake.parts[i];
-                
-                const foodsPerPart = Math.random() < 0.3 ? 2 : 1;
-                
-                for (let j = 0; j < foodsPerPart && foods.length < maxFoods; j++) {
-                    const offsetAngle = Math.random() * Math.PI * 2;
-                    const offsetDist = Math.random() * bodyRadius * 0.8;
-                    
-                    const x = part.x + Math.cos(offsetAngle) * offsetDist;
-                    const y = part.y + Math.sin(offsetAngle) * offsetDist;
-                    
-                    const pos = this.clamp(x, y);
-                    const color = Math.floor(Math.random() * Constants.FOOD_COLORS);
-                    
-                    const baseSize = Constants.MIN_DEATH_FOOD_SIZE; 
-                    const sizeRange = Math.min(38, Math.floor(sc * 6));
-                    const size = baseSize + Math.floor(Math.random() * sizeRange);
-                    
-                    foods.push(new Food(pos.x, pos.y, color, size));
-                }
-            }
+        // Collect all positions along the snake (head + body parts)
+        const positions = [];
+        
+        // Add head position
+        positions.push({ x: snake.x, y: snake.y, isHead: true });
+        
+        // Add body part positions
+        for (let i = 0; i < snake.parts.length; i++) {
+            positions.push({ 
+                x: snake.parts[i].x, 
+                y: snake.parts[i].y, 
+                isHead: false,
+                progress: i / Math.max(1, snake.parts.length - 1) // 0 at head, 1 at tail
+            });
         }
         
-        console.log(`Death food spawned: ${foods.length} items for snake with sct=${snake.sct}`);
+        // Calculate how many food items to place
+        // Distribute evenly along the snake, up to maxFoodCount
+        const foodCount = Math.min(maxFoodCount, positions.length * 2);
+        
+        // Calculate spacing between food items
+        const totalLength = positions.length;
+        const spacing = Math.max(1, totalLength / foodCount);
+        
+        let foodsPlaced = 0;
+        let posIndex = 0;
+        
+        while (foodsPlaced < foodCount && posIndex < positions.length) {
+            const pos = positions[Math.floor(posIndex)];
+            
+            // Size calculation: larger near head, smaller near tail
+            // Head gets max size, tail gets min size
+            const progress = pos.isHead ? 0 : (pos.progress || 0);
+            const sizeRange = maxSize - minSize;
+            const size = Math.floor(maxSize - sizeRange * progress * 0.6);
+            
+            // Clamp position to play area
+            const clampedPos = this.clamp(pos.x, pos.y);
+            
+            // Add small random offset to prevent exact overlap
+            const offsetAngle = Math.random() * Math.PI * 2;
+            const offsetDist = Math.random() * 5;
+            const finalX = clampedPos.x + Math.cos(offsetAngle) * offsetDist;
+            const finalY = clampedPos.y + Math.sin(offsetAngle) * offsetDist;
+            
+            foods.push(new Food(
+                finalX,
+                finalY,
+                Math.floor(Math.random() * Constants.FOOD_COLORS),
+                size
+            ));
+            foodsPlaced++;
+            
+            // For larger snakes, add extra food around the body width
+            if (foodsPlaced < foodCount && !pos.isHead && sc > 1.5) {
+                // Get perpendicular direction for body width
+                const prevIdx = Math.max(0, Math.floor(posIndex) - 1);
+                const nextIdx = Math.min(positions.length - 1, Math.floor(posIndex) + 1);
+                
+                if (prevIdx !== nextIdx) {
+                    const dx = positions[nextIdx].x - positions[prevIdx].x;
+                    const dy = positions[nextIdx].y - positions[prevIdx].y;
+                    const perpAngle = Math.atan2(dy, dx) + Math.PI / 2;
+                    
+                    // Body width based on scale
+                    const bodyWidth = 10 * sc;
+                    
+                    // Add food on one side (random)
+                    const side = Math.random() > 0.5 ? 1 : -1;
+                    const sideX = pos.x + Math.cos(perpAngle) * bodyWidth * side * 0.5;
+                    const sideY = pos.y + Math.sin(perpAngle) * bodyWidth * side * 0.5;
+                    const sideClamped = this.clamp(sideX, sideY);
+                    
+                    // Side food is slightly smaller
+                    const sideSize = Math.floor(size * 0.85);
+                    
+                    foods.push(new Food(
+                        sideClamped.x,
+                        sideClamped.y,
+                        Math.floor(Math.random() * Constants.FOOD_COLORS),
+                        Math.max(minSize, sideSize)
+                    ));
+                    foodsPlaced++;
+                }
+            }
+            
+            posIndex += spacing;
+        }
+        
+        console.log(`Death food spawned: ${foods.length} items (max=${maxFoodCount}) for snake sct=${snake.sct}, size range=${minSize}-${maxSize}`);
         return foods;
     }
     
