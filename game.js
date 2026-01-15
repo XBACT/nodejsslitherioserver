@@ -2,6 +2,20 @@ const Constants = require('./constants');
 const Snake = require('./snake');
 const { Food, Prey, FoodSpawner } = require('./food');
 
+// Keep snake2.js-style angle fields in sync when bots (or other server-side logic) pick a direction in radians.
+function setSnakeWantedAngleRad(snake, angleRad) {
+    const TWO_PI = Math.PI * 2;
+    let a = angleRad;
+    a = ((a % TWO_PI) + TWO_PI) % TWO_PI;
+
+    const ANGLE_MAX = 16777215;
+    const RAD_TO_ANGLE = ANGLE_MAX / TWO_PI;
+
+    snake.wantedAngle = a;
+    snake.wang = a * RAD_TO_ANGLE;
+}
+
+
 
 class Bot {
     constructor(snake, game) {
@@ -56,7 +70,7 @@ class Bot {
         if (danger) {
             const awayAngle = Math.atan2(this.snake.y - danger.y, this.snake.x - danger.x);
             const randomOffset = (Math.random() - 0.5) * 0.5;
-            this.snake.wantedAngle = awayAngle + randomOffset;
+            setSnakeWantedAngleRad(this.snake, awayAngle + randomOffset);
             this.avoidUntil = now + 500;
             return;
         }
@@ -71,7 +85,7 @@ class Bot {
         
         if (distFromCenter > Constants.PLAY_RADIUS * 0.80) {
             const toCenter = Math.atan2(centerY - this.snake.y, centerX - this.snake.x);
-            this.snake.wantedAngle = toCenter;
+            setSnakeWantedAngleRad(this.snake, toCenter);
             return;
         }
         
@@ -104,7 +118,7 @@ class Bot {
             if (dist < 30 || !this.game.foods.has(this.targetFood.id)) {
                 this.targetFood = null;
             } else {
-                this.snake.wantedAngle = Math.atan2(dy, dx);
+                setSnakeWantedAngleRad(this.snake, Math.atan2(dy, dx));
                 return;
             }
         }
@@ -115,7 +129,7 @@ class Bot {
             while (this.wanderAngle < 0) this.wanderAngle += Math.PI * 2;
             while (this.wanderAngle >= Math.PI * 2) this.wanderAngle -= Math.PI * 2;
         }
-        this.snake.wantedAngle = this.wanderAngle;
+        setSnakeWantedAngleRad(this.snake, this.wanderAngle);
         
        
         if (this.snake.sct > 20 && Math.random() < 0.005) {
