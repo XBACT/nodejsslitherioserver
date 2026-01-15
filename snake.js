@@ -1,5 +1,27 @@
-
 const Constants = require('./constants');
+
+// Slither-style angle representation (V11-ish): 0..16777215 maps to 0..2π.
+// snake2.js stores current heading as ehang/wehang and target heading as eang/wang.
+const ANGLE_MAX = 16777215;
+const ANGLE_TO_RAD = (Math.PI * 2) / ANGLE_MAX;
+const RAD_TO_ANGLE = ANGLE_MAX / (Math.PI * 2);
+const HALF_ANGLE_MAX = ANGLE_MAX / 2;
+
+function wrapAngleUnits(a) {
+    // Keep in [0, ANGLE_MAX)
+    a = a % ANGLE_MAX;
+    if (a < 0) a += ANGLE_MAX;
+    return a;
+}
+
+function shortestDiffUnits(target, current) {
+    // Returns shortest signed diff in (-ANGLE_MAX/2, +ANGLE_MAX/2]
+    let diff = target - current;
+    if (diff > HALF_ANGLE_MAX) diff -= ANGLE_MAX;
+    else if (diff < -HALF_ANGLE_MAX) diff += ANGLE_MAX;
+    return diff;
+}
+
 class Snake {
     constructor(id, name, skin, x, y) {
         this.id = id;
@@ -10,9 +32,12 @@ class Snake {
        
         this.x = x;
         this.y = y;
-        this.angle = Math.random() * Math.PI * 2; 
-        this.wantedAngle = this.angle;             
-        this.ehang = this.angle;                   
+        this.angle = Math.random() * Math.PI * 2;
+        this.wantedAngle = this.angle;
+
+        // Current and wanted heading in 24-bit "angle units" (snake2.js D/X style).
+        this.ehang = this.angle * RAD_TO_ANGLE;  // ehang/wehang
+        this.wang = this.ehang;                  // eang/wang
         this.speed = Constants.NSP1 / 100;         
         this.boosting = false;
         
@@ -64,7 +89,14 @@ class Snake {
     
     getScang() {
         const sc = this.getScale();
-        return 0.13 + 0.87 * Math.pow((7 - sc) / 6, 2);
+        // Original formula: 0.13 + 0.87 * ((7-sc)/6)^2
+        // At sc=6, this gives only ~0.15 (15% turn rate) which is too restrictive
+        // 
+        // Adjusted formula: higher minimum (0.28) and gentler falloff (^1.5)
+        // sc=1: 0.28 + 0.72 * 1.0 = 1.0 (100%)
+        // sc=3: 0.28 + 0.72 * 0.544 = 0.67 (67%)
+        // sc=6: 0.28 + 0.72 * 0.068 = 0.33 (33%)
+        return 0.28 + 0.72 * Math.pow((7 - sc) / 6, 1.5);
     }
     
     getSpang() {
@@ -84,51 +116,43 @@ class Snake {
         return Constants.NSP3 / 100; 
     }
     
-   
+    getCurrentSpeed() {
+        return this.boosting ? this.getBoostSpeed() : this.getBaseSpeed();
+    }
+
     update(deltaTime, isPlayerControlled = false) {
-       
-       
-        if (isPlayerControlled) {
-            this.angle = this.wantedAngle;
-            this.speed = this.boosting ? this.getBoostSpeed() : this.getBaseSpeed();
-            return;
-        }
-        
-       
-       
-        const mamu = Constants.MAMU / 1000; 
+        // Apply the same turning constraints for all snakes (player-controlled and bots).
+        const mamu = Constants.MAMU / 1000;
         const scang = this.getScang();
         const spang = this.getSpang();
-        
-       
-        const vfr = deltaTime / 1000 * 16;
-        
-       
-       
-        const maxTurn = mamu * vfr * scang * spang;
-        
-       
-        let angleDiff = this.wantedAngle - this.angle;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        
-       
-        if (Math.abs(angleDiff) > 0.0001) {
-            if (Math.abs(angleDiff) <= maxTurn) {
-                this.angle = this.wantedAngle;
+
+        // vfr: virtual frame rate scaling used by the official client (delta ms / 8)
+        const vfr = deltaTime / 8; // matches the official client: vfr = (ctm - ltm) / 8
+
+        // Existing turning limit was radians; convert to 24-bit angle-units.
+        const maxTurnRad = mamu * vfr * scang * spang;
+        const maxTurnUnits = maxTurnRad * RAD_TO_ANGLE;
+
+        const diffUnits = shortestDiffUnits(this.wang, this.ehang);
+
+        // Avoid tiny oscillations; 0.0001 rad was the previous deadzone.
+        const deadzoneUnits = 0.0001 * RAD_TO_ANGLE;
+
+        if (Math.abs(diffUnits) > deadzoneUnits) {
+            if (Math.abs(diffUnits) <= maxTurnUnits) {
+                this.ehang = wrapAngleUnits(this.wang);
             } else {
-                this.angle += Math.sign(angleDiff) * maxTurn;
+                this.ehang = wrapAngleUnits(this.ehang + Math.sign(diffUnits) * maxTurnUnits);
             }
-            
-           
-            while (this.angle < 0) this.angle += Math.PI * 2;
-            while (this.angle >= Math.PI * 2) this.angle -= Math.PI * 2;
         }
-        
-       
+
+        // Keep radians fields in sync for movement/serialization.
+        this.angle = this.ehang * ANGLE_TO_RAD;
+        this.wantedAngle = this.wang * ANGLE_TO_RAD;
+
         this.speed = this.boosting ? this.getBoostSpeed() : this.getBaseSpeed();
     }
-    
+
     move() {
         const moveDistance = Constants.MOVE_DISTANCE; 
         
@@ -186,8 +210,9 @@ class Snake {
     }
     
     setWantedAngle(angleByte, isOwnSnake = false) {
-       
-        this.wantedAngle = (angleByte / 251) * Math.PI * 2;
+        // Convert 0..250(ish) network byte into 24-bit angle-units (0..16777215), then keep radians in sync.
+        this.wang = (angleByte / 251) * ANGLE_MAX;
+        this.wantedAngle = this.wang * ANGLE_TO_RAD;
     }
     
     setBoost(boosting) {
@@ -326,6 +351,8 @@ class Snake {
             y: this.y,
             angle: this.angle,
             wantedAngle: this.wantedAngle,
+            ehang: this.ehang,
+            wang: this.wang,
             speed: this.speed,
             sct: this.sct,
             fam: this.fam,
