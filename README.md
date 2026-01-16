@@ -1,44 +1,44 @@
-# Slither.io Server
-Node.js server implementing the official Slither.io protocol
+# slither.io server
+The Node.js server implements the Slither.io protocol.
 
-## Installation
+## collecting
 
 
-1. Clone repo
-```bash
+1. Close your account
+``` yes
 git clone https://github.com/xbact/slither-server.git
 ```
 
-2. Enter folder
-```bash
-cd slither-server
+2. Go to the folder
+``` yes
+Internal CD server
 ```
-3. Install dependencies
-```bash
-npm install
+3. Install the dependencies
+``` yes
+installation of e.g
 ```
-4. Start server
-```bash
-npm start
-```
-
-## How To Connect
-
-Open Slither.io → press F12 → go to **Console** tab → paste this:
-
-```js
-window.bso = { ip: "127.0.0.1", po: 8080 }; window.forcing = true; window.want_play = true;
+4. Start the server
+``` yes
+run for example
 ```
 
-## TODO
+## how to join
 
-- [ ] Fix collision detection misalignment
-- [ ] Fix rotation issues
-- [ ] Fix boost problems
-- [ ] Fix bot movement
-- [ ] Fix prey behavior
-- [ ] Fix food spawning
+Open Slither.io → Press F12 → Go to **Console** tab → Enter:
 
-## Contributing
+``` J.S.
+window.bso = {IP: "127.0.0.1", PO: 8080}; WindowPower = true; window.want_play = true;
+```
 
-Contributions are very welcome! Feel free to help fix the issues above or add new features.
+## work
+
+- [ ] Adjusted form for collision detection
+- [ ] Fix rotation problem
+- [ ] Fixed placement issues.
+- [] Change the behavior of the robot
+- [ ] improved recording behavior
+- [ ] Organization of food production
+
+## add more in the future
+
+Contributions are welcome! Help us improve the above or add new features.
