@@ -1,36 +1,36 @@
-# slither.io server
+##slither.io server
 The Node.js server implements the Slither.io protocol.
 
-## collecting
+# collecting
 
 
 1. Close your account
-``` yes
+yes
 git clone https://github.com/xbact/slither-server.git
 ```
 
 2. Go to the folder
-``` yes
+yes
 Internal CD server
 ```
 3. Install the dependencies
-``` yes
+yes
 installation of e.g
 ```
 4. Start the server
-``` yes
+yes
 run for example
 ```
 
-## how to join
+# how to join
 
 Open Slither.io → Press F12 → Go to **Console** tab → Enter:
 
-``` J.S.
+`` J.S.
 window.bso = {IP: "127.0.0.1", PO: 8080}; WindowPower = true; window.want_play = true;
 ```
 
-## work
+# work
 
 - [ ] Adjusted form for collision detection
 - [ ] Fix rotation problem
@@ -39,6 +39,6 @@ window.bso = {IP: "127.0.0.1", PO: 8080}; WindowPower = true; window.want_play =
 - [ ] improved recording behavior
 - [ ] Organization of food production
 
-## add more in the future
+# add more in the future
 
 Contributions are welcome! Help us improve the above or add new features.
