@@ -1,4 +1,4 @@
-##father
+## father
 People use ade.js slate.base.
 
 # i know
