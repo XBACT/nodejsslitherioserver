@@ -16,7 +16,6 @@ const Constants = require('./constants');
 const Snake = require('./snake');
 const { Food, Prey, FoodSpawner } = require('./food');
 
-// Keep snake2.js-style angle fields in sync when bots (or other server-side logic) pick a direction in radians.
 function setSnakeWantedAngleRad(snake, angleRad) {
     const TWO_PI = Math.PI * 2;
     let a = angleRad;
