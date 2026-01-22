@@ -195,11 +195,9 @@ class SlitherServer {
             }
         }, Constants.TICK_RATE);
         
-        // Unified snake update loop - process both angles and movements together
-        // This ensures consistent timing between angle updates and position updates
         setInterval(() => {
             this.processSnakeUpdates();
-        }, 8); // 8ms for smooth updates (125 Hz)
+        }, 8);
         
         console.log(`Game loop started (${Constants.TICK_RATE}ms ticks)`);
     }
@@ -207,9 +205,7 @@ class SlitherServer {
     processSnakeUpdates() {
         const now = Date.now();
         
-        // Process both angle updates and movements in one unified loop
         for (const snake of this.game.snakes.values()) {
-            // Initialize timing values
             if (!snake.lastUpdateTime) {
                 snake.lastUpdateTime = now;
             }
@@ -224,18 +220,12 @@ class SlitherServer {
             const deltaTime = now - snake.lastUpdateTime;
             snake.lastUpdateTime = now;
             
-            // Update snake angle (turning physics)
             snake.update(deltaTime);
             
-            // Calculate move interval based on current speed
-            // Client formula: csp = sp * vfr / 4, where vfr = deltaTime / 8
-            // So in 1 second: sp * (1000/8) / 4 = sp * 31.25 units
-            // Time to move MOVE_DISTANCE: MOVE_DISTANCE / (sp * 31.25) * 1000 = MOVE_DISTANCE * 32 / sp
             const sp = snake.getCurrentSpeed();
             let moveInterval = (Constants.MOVE_DISTANCE * 32) / Math.max(0.001, sp);
             moveInterval = Math.max(30, Math.min(500, moveInterval));
             
-            // Check if it's time to send a new move packet
             const timeSinceMove = now - snake.lastMoveTime;
             
             if (timeSinceMove >= moveInterval) {
@@ -244,11 +234,9 @@ class SlitherServer {
                 const prevFam = snake.fam;
                 const shouldGrow = snake.hasPendingGrowth();
                 
-                // Move the snake FIRST (shifts body parts)
                 snake.move();
                 snake.lastMoveTime = now;
                 
-                // THEN add tail part if growing (after shift, so it doesn't get overwritten)
                 if (shouldGrow && snake.parts.length > 0) {
                     const tail = snake.parts[snake.parts.length - 1];
                     const prev = snake.parts.length > 1 ? snake.parts[snake.parts.length - 2] : { x: snake.x, y: snake.y };
@@ -261,7 +249,6 @@ class SlitherServer {
                     });
                 }
                 
-                // Handle boost food dropping
                 if (snake.droppedFood) {
                     const { Food } = require('./food');
                     const worldSize = Constants.GAME_RADIUS * 2;
@@ -278,7 +265,6 @@ class SlitherServer {
                     this.game.broadcastFoodSpawn(food, 'b');
                 }
                 
-                // Send movement packets to all relevant players
                 for (const player of this.players.values()) {
                     if (!player.snake) continue;
                     
@@ -306,14 +292,9 @@ class SlitherServer {
                 });
             }
             
-            // Send rotation packets when angle changes significantly
-            // But not too frequently - only when there's meaningful change
             const timeSinceRotation = now - snake.lastRotationSent;
             const angleDiff = Math.abs(snake.angle - (snake.lastSentAngle || 0));
             
-            // Send rotation update if:
-            // - Significant angle change (> 0.02 radians ≈ 1 degree)
-            // - Or periodic update every 150ms to keep client in sync
             if (angleDiff > 0.02 || (timeSinceRotation >= 150 && angleDiff > 0.001)) {
                 snake.lastRotationSent = now;
                 snake.lastSentAngle = snake.angle;
