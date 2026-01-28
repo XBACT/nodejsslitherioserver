@@ -1,5 +1,7 @@
 # Slither.io Server
 
+![screenshot](shot.png)
+
 
 ## Installation
 
