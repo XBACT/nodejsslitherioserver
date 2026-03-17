@@ -1,0 +1,13 @@
+{
+  "name": "slither-server",
+  "version": "1.0.0",
+  "description": "Slither.io game server",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --inspect server/index.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
