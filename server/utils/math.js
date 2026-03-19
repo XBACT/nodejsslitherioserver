@@ -44,12 +44,13 @@ function randomFloat(min, max) {
 }
 
 // Generate random position within game circle
-function randomPosition(radius) {
+function randomPosition(radius, center) {
   const angle = Math.random() * PI2;
   const r = Math.sqrt(Math.random()) * radius * 0.7;
+  const c = center !== undefined ? center : radius;
   return {
-    x: radius + Math.cos(angle) * r,
-    y: radius + Math.sin(angle) * r,
+    x: c + Math.cos(angle) * r,
+    y: c + Math.sin(angle) * r,
   };
 }
 

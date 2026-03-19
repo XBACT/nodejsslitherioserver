@@ -172,8 +172,8 @@ class Snake {
     this.x += Math.cos(this.angle) * csp;
     this.y += Math.sin(this.angle) * csp;
 
-    const cx = config.GAME_RADIUS;
-    const cy = config.GAME_RADIUS;
+    const cx = config.GAME_CENTER;
+    const cy = config.GAME_CENTER;
     const dx = this.x - cx;
     const dy = this.y - cy;
     const distFromCenter = Math.sqrt(dx * dx + dy * dy);
@@ -192,12 +192,21 @@ class Snake {
           break;
         }
         this.fam += 1.0;
-        const tail = this.body.shift();
+        this.body.shift();
         this.visualBody.shift();
         this.sct--;
         this._updateDerived();
         this.pendingTailRemoves++;
-        this.pendingBoostDrops.push({ x: tail.x, y: tail.y });
+      }
+      // Drop food from tail every tick while boosting
+      if (this.body.length > 0) {
+        const tail = this.body[0];
+        const spread = this.getBodyRadius() * 0.6;
+        const dropAngle = Math.random() * PI2;
+        this.pendingBoostDrops.push({
+          x: tail.x + Math.cos(dropAngle) * spread * Math.random(),
+          y: tail.y + Math.sin(dropAngle) * spread * Math.random(),
+        });
       }
     }
 

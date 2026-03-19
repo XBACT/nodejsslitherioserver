@@ -93,8 +93,8 @@ class BotManager {
 
   // Normal bot
   _updateNormal(snakeId, snake) {
-    const cx = config.GAME_RADIUS;
-    const cy = config.GAME_RADIUS;
+    const cx = config.GAME_CENTER;
+    const cy = config.GAME_CENTER;
     const score = snake.getScore();
 
     // Suicide mode
@@ -157,14 +157,12 @@ class BotManager {
         return;
       }
     }
-
-    // No food nearby — wander toward center
     this._wanderToCenter(snake);
   }
 
   _wanderToCenter(snake) {
-    const cx = config.GAME_RADIUS;
-    const cy = config.GAME_RADIUS;
+    const cx = config.GAME_CENTER;
+    const cy = config.GAME_CENTER;
     const dx = cx - snake.x;
     const dy = cy - snake.y;
     const distToCenter = Math.sqrt(dx * dx + dy * dy);

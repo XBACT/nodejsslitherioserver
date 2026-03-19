@@ -45,7 +45,7 @@ function encodeServerVersion(versionStr) {
 }
 
 function encodeInitPacket(opts = {}) {
-  const grd = opts.grd || config.GAME_RADIUS;
+  const grd = opts.grd || config.GAME_CENTER;
   const mscps = opts.mscps || config.MAX_SEGMENT_COUNT;
   const sectorSize = opts.sectorSize || config.SECTOR_SIZE;
   const sectorCount = opts.sectorCount || config.SECTOR_COUNT;
@@ -66,7 +66,7 @@ function encodeInitPacket(opts = {}) {
   buf[m++] = opts.protocolVersion || config.PROTOCOL_VERSION;
   buf[m++] = config.DEFAULT_MSL;
   w16(buf, m, opts.sid || 0); m += 2;
-  const fluxGrd = Math.floor(grd * 0.98);
+  const fluxGrd = Math.floor(config.GAME_RADIUS * 0.98);
   w24(buf, m, fluxGrd); m += 3;
   buf[m++] = 0;
   buf[m++] = 0;
@@ -277,6 +277,13 @@ function encodeTailRemove(snakeId, fam) {
   buf[0] = 0x72; // 'r'
   w16(buf, 1, snakeId);
   w24(buf, 3, Math.round(fam * 16777215));
+  return buf;
+}
+
+function encodeTailRemoveSelf(snakeId) {
+  const buf = new Uint8Array(3);
+  buf[0] = 0x72; // 'r'
+  w16(buf, 1, snakeId);
   return buf;
 }
 
@@ -601,6 +608,7 @@ module.exports = {
   encodeBodyPointAdd,
   encodeFamUpdate,
   encodeTailRemove,
+  encodeTailRemoveSelf,
   encodeFoodSector,
   encodeFoodSpawn,
   encodeFoodEat,

@@ -12,7 +12,8 @@ module.exports = {
   NTL_SECRET: 'dakrtywcilopuhgrmzwsdolitualksrrarjsrzyjhrnzvfdfkrsyahjvuobhjkmzwvgoppxaagiwvscjlqoualghnuvdedozuwcdjosrcnhjprwlkfqbyegkorwtepmlstcfhksxakilruwdhhouwdchnsqecngvqpcz',
 
   // Game world
-  GAME_RADIUS: 1600,           // grd (dynamic, updated by GameEngine)
+  GAME_CENTER: 3000,             // fixed map center (grd sent to client)
+  GAME_RADIUS: 1600,           // boundary radius (dynamic, updated by GameEngine)
   GAME_RADIUS_MIN: 800,        // minimum dynamic radius
   GAME_RADIUS_MAX: 3000,       // maximum dynamic radius
   GAME_RADIUS_PER_SNAKE: 80,   // radius increase per alive snake
@@ -38,11 +39,11 @@ module.exports = {
   SNAKE_MOVE_INTERVAL: 75,      // ms per movement tick
 
   // Food
-  FOOD_SPAWN_RATE: 10,          // foods per tick
-  MAX_FOOD_PER_SECTOR: 10,
+  FOOD_SPAWN_RATE: 1,          // foods per tick
+  MAX_FOOD_PER_SECTOR: 1,
   FOOD_BASE_RADIUS: 2.5,
   FOOD_COLORS: 42,
-  FOOD_VALUE: 0.04,             // fam gain per food (20 foods = 1 segment)
+  FOOD_VALUE: 0.05,             // fam gain per food (20 foods = 1 segment)
 
   // Prey
   PREY_SPAWN_INTERVAL: 3000,    // ms
@@ -67,6 +68,7 @@ module.exports = {
   // Cleanup
   DEAD_FOOD_COUNT: 12,          // foods dropped on death
   DEAD_FOOD_RADIUS: 4.0,
+  BOOST_DROP_RADIUS: 2.5,         // radius of food dropped during boost
 
   // Highscore display
   HIGHSCORE_NAME: 'SnakeyRain.com',

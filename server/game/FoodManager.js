@@ -66,7 +66,7 @@ class FoodManager {
   spawnRandomFood(count) {
     const spawned = [];
     const grd = config.GAME_RADIUS;
-    const center = grd;
+    const center = config.GAME_CENTER;
 
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;

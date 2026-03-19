@@ -23,7 +23,7 @@ class GameEngine {
     this.snakeIdPool = new IdPool(65535);
     this.botManager = new BotManager(this);
     this.bodyGrid = new SpatialGrid(
-      config.GAME_RADIUS_MAX * 2,
+      config.GAME_CENTER * 2,
       config.SPATIAL_CELL_SIZE
     );
     this.tickCount = 0;
@@ -31,7 +31,7 @@ class GameEngine {
     this.running = false;
     this.tickInterval = null;
 
-    // Pre-spawn food within current playable area
+    // Pre-spawn food
     this.food.spawnRandomFood(2000);
 
     // Pre-spawn some prey
@@ -44,9 +44,15 @@ class GameEngine {
     if (this.running) return;
     this.running = true;
     this.lastTickTime = Date.now();
+    const expectedSnakes = config.BOT_NORMAL_COUNT + config.BOT_CHASER_COUNT;
+    config.GAME_RADIUS = Math.max(
+      config.GAME_RADIUS_MIN,
+      Math.min(config.GAME_RADIUS_MAX, config.GAME_RADIUS_MIN + expectedSnakes * config.GAME_RADIUS_PER_SNAKE)
+    );
+
     this.tickInterval = setInterval(() => this.tick(), config.TICK_INTERVAL);
     this.botManager.start();
-    console.log(`Game engine started (${config.TICK_RATE} tps)`);
+    console.log(`Game engine started (${config.TICK_RATE} tps, radius=${config.GAME_RADIUS})`);
   }
 
   stop() {
@@ -86,7 +92,7 @@ class GameEngine {
     let bestMinDist = -1;
 
     for (let i = 0; i < attempts; i++) {
-      const pos = randomPosition(config.GAME_RADIUS);
+      const pos = randomPosition(config.GAME_RADIUS, config.GAME_CENTER);
       let closest = Infinity;
 
       for (const snake of this.snakes.values()) {
@@ -103,7 +109,7 @@ class GameEngine {
       }
     }
 
-    return bestPos || randomPosition(config.GAME_RADIUS);
+    return bestPos || randomPosition(config.GAME_RADIUS, config.GAME_CENTER);
   }
 
   spawnSnake(player, name, skin) {
@@ -343,12 +349,15 @@ class GameEngine {
 
       while (snake.pendingTailRemoves > 0) {
         snake.pendingTailRemoves--;
+        if (snake.player) {
+          snake.player.send(encoder.encodeTailRemoveSelf(snake.id));
+        }
         const tailPkt = encoder.encodeTailRemove(snake.id, snake.fam);
         this._broadcastToVisible(snake, tailPkt);
       }
       for (const drop of snake.pendingBoostDrops) {
         const skinCv = snake.skin % 9;
-        const radius = config.DEAD_FOOD_RADIUS * (0.5 + snake.sc * 0.3);
+        const radius = config.BOOST_DROP_RADIUS * (0.5 + snake.sc * 0.2);
         const cv = (skinCv + Math.floor(Math.random() * 3)) % config.FOOD_COLORS;
         const food = this.food.spawnFood(drop.x, drop.y, cv, radius, true);
         if (food) {
@@ -642,7 +651,7 @@ class GameEngine {
     for (const snake of this.snakes.values()) {
       if (!snake.alive) continue;
       const baseEatRadius = snake.getHeadRadius() + 40;
-      const eatRadius = snake.boosting ? baseEatRadius * 2 : baseEatRadius;
+      const eatRadius = baseEatRadius;
       const nearFoods = this.food.findNear(snake.x, snake.y, eatRadius);
 
       for (const food of nearFoods) {
@@ -712,6 +721,10 @@ class GameEngine {
       for (const snake of this.snakes.values()) {
         if (!snake.alive) continue;
         const famPkt = encoder.encodeFamUpdate(snake.id, snake.fam);
+        // Send fam update to self player
+        if (snake.player) {
+          snake.player.send(famPkt);
+        }
         for (const player of this.players.values()) {
           if (!player.snake || !player.snake.alive) continue;
           if (player.visibleSnakes.has(snake.id)) {
@@ -724,7 +737,7 @@ class GameEngine {
 
   _sendLeaderboard() {
     const entries = this.leaderboard.entries.map(e => ({
-      sct: e.snake.sct + 1 + e.snake.rsc,
+      sct: e.snake.sct + e.snake.rsc,
       fam: e.snake.fam,
       cv: e.snake.skin,
       name: e.snake.name,
@@ -743,7 +756,7 @@ class GameEngine {
 
   _sendMinimap() {
     const size = config.MINIMAP_SIZE;
-    const grd = config.GAME_RADIUS;
+    const grd = config.GAME_CENTER;
     const diameter = grd * 2;
     const data = new Uint8Array(size * size);
 

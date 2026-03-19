@@ -43,7 +43,7 @@ class PreyManager {
 
   update(dt, snakes) {
     const grd = config.GAME_RADIUS;
-    const center = grd;
+    const center = config.GAME_CENTER;
     const fleeRange = 400;
     const fleeSpeed = config.NSP1 + config.NSP2 * 6 + 1;
 
@@ -105,7 +105,7 @@ class PreyManager {
 
   spawnRandom() {
     const grd = config.GAME_RADIUS;
-    const center = grd;
+    const center = config.GAME_CENTER;
     const angle = Math.random() * PI2;
     const r = Math.sqrt(Math.random()) * grd * 0.7;
     return this.spawnPrey(
