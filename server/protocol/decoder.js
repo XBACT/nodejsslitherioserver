@@ -12,7 +12,7 @@ function decodeLoginPacket(data) {
     for (let i = 0; i < nameLen; i++) {
       name += String.fromCharCode(data[26 + i]);
     }
-    return { version: (data[1] << 8) | data[2], skin, name, precise: false };
+    return { version: (data[1] << 8) | data[2], skin, name, isProtocol13: false };
   }
 
   const skin = data[2];
@@ -21,7 +21,7 @@ function decodeLoginPacket(data) {
   for (let i = 0; i < nameLen; i++) {
     name += String.fromCharCode(data[4 + i]);
   }
-  return { version: data[1], skin, name, precise: true };
+  return { version: data[1], skin, name, isProtocol13: true };
 }
 
 function decodeAngle(byte) {

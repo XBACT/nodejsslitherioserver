@@ -6,10 +6,10 @@ module.exports = {
   HOST: '0.0.0.0',
 
   // Protocol
-  PROTOCOL_VERSION: 15,
+  PROTOCOL_VERSION: 19,
   CLIENT_VERSION: 291,
   SERVER_VERSION: '',
-  NTL_SECRET: 'dakrtywcilopuhgrmzwsdolitualksrrarjsrzyjhrnzvfdfkrsyahjvuobhjkmzwvgoppxaagiwvscjlqoualghnuvdedozuwcdjosrcnhjprwlkfqbyegkorwtepmlstcfhksxakilruwdhhouwdchnsqecngvqpcz',
+  PROTOCOL11_SECRET: 'dakrtywcilopuhgrmzwsdolitualksrrarjsrzyjhrnzvfdfkrsyahjvuobhjkmzwvgoppxaagiwvscjlqoualghnuvdedozuwcdjosrcnhjprwlkfqbyegkorwtepmlstcfhksxakilruwdhhouwdchnsqecngvqpcz',
 
   // Game world
   GAME_CENTER: 3000,             // fixed map center (grd sent to client)

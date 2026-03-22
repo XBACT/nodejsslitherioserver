@@ -86,19 +86,19 @@ class WsServer {
     if (!player.wantEtm) {
       player.needsPrefix = true;
       if (data.length >= 2 && data[1] === 0x04) {
-        player.clientType = 'precise';
+        player.clientType = 'protocol13';
         player.protocolVersion = 13;
       } else {
-        player.clientType = 'ntl';
+        player.clientType = 'protocol11';
         player.protocolVersion = 11;
       }
     } else {
       player.needsPrefix = false;
-      player.clientType = 'ntl';
-      player.protocolVersion = 15;
+      player.clientType = 'protocol11';
+      player.protocolVersion = config.PROTOCOL_VERSION;
     }
 
-    player.send(encoder.encodeServerVersion(config.NTL_SECRET));
+    player.send(encoder.encodeServerVersion(config.PROTOCOL11_SECRET));
     player.state = 'handshake';
   }
 
@@ -125,9 +125,9 @@ class WsServer {
       player.ws.close();
       return;
     }
-    if (!login.precise && player.clientType === 'precise') {
-      player.clientType = 'ntl';
-      player.protocolVersion = 15;
+    if (!login.isProtocol13 && player.clientType === 'protocol13') {
+      player.clientType = 'protocol11';
+      player.protocolVersion = config.PROTOCOL_VERSION;
     }
 
     console.log(`[Login] Player ${player.id}: name="${login.name}" skin=${login.skin} proto=${player.protocolVersion}`);
