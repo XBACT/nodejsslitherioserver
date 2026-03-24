@@ -32,10 +32,13 @@ Open Slither.io → press F12 → go to **Console** tab → paste this:
 window.bso = { ip: "127.0.0.1", po: 8080 }; window.forcing = true;
 ```
 
+## TODO
+[ ] Add support for TCP connections
+
 ## Contributing
 
 Contributions are very welcome! Feel free to help fix the issues above or add new features.
 
 ## License
 
-This project is licensed under the AGPL-3.0 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
