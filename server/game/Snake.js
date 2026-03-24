@@ -4,14 +4,15 @@ const config = require('../config');
 const { PI2, normalizeAngle, angleDiff } = require('../utils/math');
 
 class Snake {
-  constructor(id, x, y, name, skin) {
+  constructor(id, x, y, name, skin, initialAngle) {
     this.id = id;
     this.x = x;
     this.y = y;
     this.name = name || '';
     this.skin = skin || 0;
 
-    this.angle = Math.round(Math.random() * 256) / 256 * PI2;
+    const a = initialAngle !== undefined ? initialAngle : Math.random() * PI2;
+    this.angle = Math.round(a / PI2 * 256) / 256 * PI2;
     this.wantAngle = this.angle;
     this.dir = 0;
     this.speed = config.NSP1 + config.NSP2;

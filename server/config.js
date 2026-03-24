@@ -22,7 +22,7 @@ module.exports = {
   MAX_SEGMENT_COUNT: 411,       // mscps
   DEFAULT_MSL: 42,              // default_msl (segment length)
 
-  // Physics (must match 'a' packet values sent to client)
+  // Physics
   SPANGDV: 4.8,                 // spangdv * 10 = 48
   NSP1: 4.25,                   // nsp1 * 100 = 425 (base speed)
   NSP2: 0.5,                    // nsp2 * 100 = 50  (speed per sc)
@@ -30,7 +30,6 @@ module.exports = {
   MAMU: 0.033,                  // mamu * 1000 = 33  (turn rate)
   MAMU2: 0.028,                 // mamu2 * 1000 = 28
   CST: 0.43,                    // cst * 1000 = 430
-  // Speed is computed from NSP1+NSP2*sc, NOT hardcoded
   BOOST_FAM_LOSS: 0.025,        // fam lost per tick while boosting (~2s per segment at 20tps)
 
   // Snake defaults
@@ -40,10 +39,10 @@ module.exports = {
 
   // Food
   FOOD_SPAWN_RATE: 1,          // foods per tick
-  MAX_FOOD_PER_SECTOR: 1,
+  MAX_FOOD_PER_SECTOR: 50,
   FOOD_BASE_RADIUS: 2.5,
   FOOD_COLORS: 42,
-  FOOD_VALUE: 0.05,             // fam gain per food (20 foods = 1 segment)
+  FOOD_VALUE: 0.03,             // fam gain per food (20 foods = 1 segment)
 
   // Prey
   PREY_SPAWN_INTERVAL: 3000,    // ms
@@ -71,14 +70,20 @@ module.exports = {
   BOOST_DROP_RADIUS: 2.5,         // radius of food dropped during boost
 
   // Highscore display
-  HIGHSCORE_NAME: 'SnakeyRain.com',
+  HIGHSCORE_NAME: 'This server is open source!',
   HIGHSCORE_MSG: 'Welcome!',
 
   // Bots
   BOT_CHASER_COUNT: 0,          // chase players
-  BOT_CHASER_NAMES: ['SnakeyRain.com'],
+  BOT_CHASER_NAMES: ["SnakeyRain.com"],
   BOT_NORMAL_COUNT: 40,          // normal bots
-  BOT_NORMAL_NAMES: ['Slither4Life', 'SnakeKing', 'NoobSlither', 'xXSnakeXx', 'Snek', 'Danger Noodle', 'LongBoi', 'Hisss', 'Wiggler', 'NomNom'],
+  BOT_NORMAL_NAMES: ["Puff Daddy", "Straigst Edge", "Bud", "Cord", "Matrix", "Jhon doe", "Ammo", "Blur", "fat mike", "spooky", "slither.io best io", "Tagger", "Apex", "Blaaze", "kakapo", "Optical", "parabox", "greedo", "Cypris", "Usher", "Crow", "Nitrous", "Cut", "Zeso's Parabox", "JoJo", "Joker", "blue", "ZeaL", "Usher", "Onyx"],
   BOT_NORMAL_SUICIDE_SCORE: 900, // score threshold to head for map edge
   BOT_RESPAWN_DELAY: 3000,       // ms before respawning a dead bot
+  BOT_SPIRAL_ENABLED: false,
+  BOT_SPIRAL_NAMES: ["Spiral", "Vortex", "Orbit", "Loop", "Coil"],
+  BOT_SPIRAL_RADIUS: 2000,       // starting orbit radius (clamped to GAME_RADIUS*0.9)
+  BOT_SPIRAL_SHRINK_RATE: 1,   // bot heading inward bias (units/tick)
+  BOT_SPIRAL_SPAWN_RATE: 100,    // spawn ring inward speed (units/tick); higher = faster
+  BOT_SPIRAL_WAVE_COUNT: 5,      // simultaneous rings (outer to inner)
 };

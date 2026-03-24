@@ -13,6 +13,16 @@ const encoder = require('../protocol/encoder');
 const SNAKE_ENTER_RANGE = 2800;
 const SNAKE_EXIT_RANGE = 3200;
 
+function getFoodSectorRange(snake) {
+  return Math.min(8, 2 + Math.ceil(snake.sc || 1));
+}
+function getSnakeViewRange(snake) {
+  return Math.round(SNAKE_ENTER_RANGE * (snake.sc || 1));
+}
+function getSnakeExitRange(snake) {
+  return Math.round(SNAKE_EXIT_RANGE * (snake.sc || 1));
+}
+
 class GameEngine {
   constructor() {
     this.snakes = new Map();
@@ -44,7 +54,11 @@ class GameEngine {
     if (this.running) return;
     this.running = true;
     this.lastTickTime = Date.now();
-    const expectedSnakes = config.BOT_NORMAL_COUNT + config.BOT_CHASER_COUNT;
+    // Estimate spiral bot count: one ring * wave count
+    const spiralR = Math.min(config.BOT_SPIRAL_RADIUS, config.GAME_RADIUS_MAX * 0.85);
+    const estimatedSpiralCount = Math.floor(PI2 * spiralR / (config.DEFAULT_MSL * 3))
+      * (config.BOT_SPIRAL_WAVE_COUNT || 1);
+    const expectedSnakes = config.BOT_NORMAL_COUNT + config.BOT_CHASER_COUNT + estimatedSpiralCount;
     config.GAME_RADIUS = Math.max(
       config.GAME_RADIUS_MIN,
       Math.min(config.GAME_RADIUS_MAX, config.GAME_RADIUS_MIN + expectedSnakes * config.GAME_RADIUS_PER_SNAKE)
@@ -76,10 +90,20 @@ class GameEngine {
       )
     );
     const diff = target - config.GAME_RADIUS;
+    const prev = config.GAME_RADIUS;
     if (Math.abs(diff) > 5) {
       config.GAME_RADIUS = Math.round(config.GAME_RADIUS + Math.sign(diff) * 5);
     } else {
       config.GAME_RADIUS = target;
+    }
+    if (config.GAME_RADIUS !== prev) {
+      const fluxGrd = Math.floor(config.GAME_RADIUS * 0.98);
+      const pkt = encoder.encodeRadiusUpdate(fluxGrd);
+      for (const snake of this.snakes.values()) {
+        if (snake.player && snake.player.ws && snake.player.ws.readyState === 1) {
+          snake.player.ws.send(pkt);
+        }
+      }
     }
   }
 
@@ -132,7 +156,8 @@ class GameEngine {
     if (!snake) return;
 
     snake.alive = false;
-    const removePacket = encoder.encodeSnakeRemove(snakeId, 1);
+    const isKill = killedBy !== null ? 1 : 0;
+    const removePacket = encoder.encodeSnakeRemove(snakeId, isKill);
     for (const player of this.players.values()) {
       if (player.snakeId === snakeId) continue;
       if (player.visibleSnakes.has(snakeId)) {
@@ -140,63 +165,49 @@ class GameEngine {
       }
     }
     if (snake.player) {
-      snake.player.send(encoder.encodeSnakeRemove(snakeId, 1));
+      snake.player.send(encoder.encodeSnakeRemove(snakeId, isKill));
       snake.player.send(encoder.encodeDeath(0));
       snake.player.deathPos = { x: snake.x, y: snake.y, time: Date.now() };
       snake.player.snake = null;
       snake.player.snakeId = null;
+      setTimeout(() => {
+        if (snake.player && snake.player.ws.readyState === 1) {
+          snake.player.ws.close();
+        }
+      }, 5000);
     }
 
     if (killedBy) {
       const deathFoods = [];
-      const body = snake.body;
-      const bodyRadius = snake.getBodyRadius();
       const skinCv = snake.skin % 9;
-      const foodSpacing = 8;
 
-      const fullPath = [];
-      for (const pt of body) {
-        fullPath.push({ x: pt.x, y: pt.y });
-      }
-      fullPath.push({ x: snake.x, y: snake.y });
+      // Official mechanic: up to 2 * sct pellets, radius byte = 68 + (sc-1)*7.6
+      const targetCount = 2 * snake.sct;
+      const radius = (68 + (snake.sc - 1) * 7.6) / 5;
+      const bodyRadius = snake.getBodyRadius();
 
-      const sc = snake.sc;
-      const foodRadiusBase = config.DEAD_FOOD_RADIUS * (0.5 + sc * 0.3);
-      const spacingScale = Math.max(0.4, 1.0 - (sc - 1) * 0.1);
+      const pts = [];
+      for (const pt of snake.body) pts.push({ x: pt.x, y: pt.y });
+      pts.push({ x: snake.x, y: snake.y });
 
-      for (let i = 0; i < fullPath.length - 1; i++) {
-        const ax = fullPath[i].x, ay = fullPath[i].y;
-        const bx = fullPath[i + 1].x, by = fullPath[i + 1].y;
-        const segDx = bx - ax, segDy = by - ay;
-        const segLen = Math.sqrt(segDx * segDx + segDy * segDy);
-        if (segLen < 0.1) continue;
-
-        const px = -segDy / segLen, py = segDx / segLen;
-
-        const steps = Math.max(1, Math.round(segLen / (foodSpacing * spacingScale)));
-        for (let s = 0; s < steps; s++) {
-          const t = s / steps;
-          const cx = ax + segDx * t;
-          const cy = ay + segDy * t;
-          const spread = (Math.random() - 0.5) * bodyRadius * 1.2;
-          const fx = cx + px * spread;
-          const fy = cy + py * spread;
-          const cv = (skinCv + Math.floor(Math.random() * 3)) % config.FOOD_COLORS;
-          const radius = foodRadiusBase * (0.7 + Math.random() * 0.6);
-          const food = this.food.spawnFood(fx, fy, cv, radius, true);
-          if (food) deathFoods.push(food);
-        }
-      }
-
-      {
-        const food = this.food.spawnFood(snake.x, snake.y, skinCv, foodRadiusBase * 1.5, true);
+      for (let k = 0; k < targetCount; k++) {
+        const t = pts.length > 1 ? k / targetCount : 0;
+        const rawIdx = t * (pts.length - 1);
+        const i = Math.min(Math.floor(rawIdx), pts.length - 2);
+        const frac = rawIdx - i;
+        const px = pts[i].x + (pts[i + 1].x - pts[i].x) * frac;
+        const py = pts[i].y + (pts[i + 1].y - pts[i].y) * frac;
+        const angle = Math.random() * Math.PI * 2;
+        const spread = Math.random() * bodyRadius * 0.6;
+        const fx = px + Math.cos(angle) * spread;
+        const fy = py + Math.sin(angle) * spread;
+        const cv = (skinCv + Math.floor(Math.random() * 3)) % config.FOOD_COLORS;
+        const food = this.food.spawnFood(fx, fy, cv, radius, true);
         if (food) deathFoods.push(food);
       }
 
       for (const food of deathFoods) {
-        this.broadcastNearVersioned(food.x, food.y, (pv) =>
-          encoder.encodeFoodSpawn(food.sx, food.sy, food.rx, food.ry, food.cv, food.radius, pv)
-        );
+        this.broadcastFoodSpawnVersioned(food);
       }
     }
 
@@ -236,11 +247,19 @@ class GameEngine {
     this._rebuildBodyGrid();
     this._checkCollisions();
     this._checkFoodEating();
+    if (this.tickCount % 3 === 0) {
+      for (const player of this.players.values()) {
+        if (player.snake && player.snake.alive) this._updateFoodVisibility(player);
+      }
+    }
     this._checkPreyEating();
     this._flushPendingBodyPoints();
     if (this.tickCount % 5 === 0) {
       this._spawnFoodNearLowScorePlayers();
-      this.food.spawnRandomFood(config.FOOD_SPAWN_RATE);
+      const newFoods = this.food.spawnRandomFood(config.FOOD_SPAWN_RATE);
+      for (const food of newFoods) {
+        this.broadcastFoodSpawnVersioned(food);
+      }
     }
 
     // Update prey
@@ -310,9 +329,7 @@ class GameEngine {
           const radius = 1.5 + Math.random() * 2.5;
           const food = this.food.spawnFood(fx, fy, cv, radius);
           if (food) {
-            this.broadcastNearVersioned(food.x, food.y, (pv) =>
-              encoder.encodeFoodSpawn(food.sx, food.sy, food.rx, food.ry, food.cv, food.radius, pv)
-            );
+            this.broadcastFoodSpawnVersioned(food);
           }
         }
       }
@@ -361,9 +378,7 @@ class GameEngine {
         const cv = (skinCv + Math.floor(Math.random() * 3)) % config.FOOD_COLORS;
         const food = this.food.spawnFood(drop.x, drop.y, cv, radius, true);
         if (food) {
-          this.broadcastNearVersioned(food.x, food.y, (pv) =>
-            encoder.encodeFoodSpawn(food.sx, food.sy, food.rx, food.ry, food.cv, food.radius, pv)
-          );
+          this.broadcastFoodSpawnVersioned(food);
         }
       }
       snake.pendingBoostDrops.length = 0;
@@ -444,14 +459,16 @@ class GameEngine {
 
         const d = distance(px, py, snake.x, snake.y);
         const bodyDist = snake.maxBodyDist || 0;
+        const enterRange = getSnakeViewRange(player.snake);
+        const exitRange = getSnakeExitRange(player.snake);
 
         if (player.visibleSnakes.has(snakeId)) {
-          if (d > SNAKE_EXIT_RANGE + bodyDist) {
+          if (d > exitRange + bodyDist) {
             player.visibleSnakes.delete(snakeId);
             player.send(encoder.encodeSnakeRemove(snakeId, 0));
           }
         } else {
-          if (d < SNAKE_ENTER_RANGE + bodyDist) {
+          if (d < enterRange + bodyDist) {
             player.visibleSnakes.add(snakeId);
             player.send(encoder.encodeSnakeSpawn(snake, player.protocolVersion));
           }
@@ -473,8 +490,11 @@ class GameEngine {
       const bodyRadius = snake.getBodyRadius();
       const vb = snake.visualBody;
       const totalClip = Math.max(0, 0.6 - Math.min(1, snake.fam) + snake.growthBuffer);
-      const startIdx = Math.min(Math.floor(totalClip), Math.max(0, vb.length - 2));
+      const startIdx = Math.min(Math.round(totalClip), Math.max(0, vb.length - 2));
       let maxDistSq = 0;
+      // Add actual head position to cover the gap between last body point and head
+      const headPt = { x: snake.x, y: snake.y, _snakeId: snake.id, _bodyIdx: -1 };
+      this.bodyGrid.insert(headPt, snake.x, snake.y, bodyRadius);
       for (let i = startIdx; i < vb.length; i++) {
         const pt = vb[i];
         pt._snakeId = snake.id;
@@ -650,12 +670,13 @@ class GameEngine {
   _checkFoodEating() {
     for (const snake of this.snakes.values()) {
       if (!snake.alive) continue;
-      const baseEatRadius = snake.getHeadRadius() + 40;
-      const eatRadius = baseEatRadius;
+      const baseEatRadius = snake.getHeadRadius() + 80;
+      const eatRadius = snake.boosting ? baseEatRadius * 1.5 : baseEatRadius;
       const nearFoods = this.food.findNear(snake.x, snake.y, eatRadius);
 
       for (const food of nearFoods) {
-        snake.fam += config.FOOD_VALUE;
+        const sizeRatio = food.radius / config.FOOD_BASE_RADIUS;
+        snake.fam += config.FOOD_VALUE * sizeRatio * sizeRatio;
 
         this.broadcastNearVersioned(snake.x, snake.y, (pv) =>
           encoder.encodeFoodEat(food.sx, food.sy, food.rx, food.ry, snake.id, pv)
@@ -748,7 +769,7 @@ class GameEngine {
       const myPos = this.leaderboard.getMyPosition(player.snake.id);
       const rank = this.leaderboard.getRank(player.snake.id);
       const pkt = encoder.encodeLeaderboard(
-        myPos, rank, this.snakes.size, entries
+        myPos, rank, this.snakes.size, entries, player.protocolVersion
       );
       player.send(pkt);
     }
@@ -791,13 +812,14 @@ class GameEngine {
     for (const other of this.snakes.values()) {
       if (!other.alive || other.id === snake.id) continue;
       const bodyDist = other.maxBodyDist || 0;
-      if (distance(snake.x, snake.y, other.x, other.y) < SNAKE_ENTER_RANGE + bodyDist) {
+      if (distance(snake.x, snake.y, other.x, other.y) < getSnakeViewRange(snake) + bodyDist) {
         player.visibleSnakes.add(other.id);
         player.send(encoder.encodeSnakeSpawn(other, player.protocolVersion));
       }
     }
 
-    // Send visible food sectors
+    // Send visible food sectors and initialize sector tracking
+    player.visibleFoodSectors = new Set();
     this._sendVisibleFood(player);
 
     // Send nearby prey only
@@ -838,14 +860,60 @@ class GameEngine {
     if (!snake) return;
     const sx = snake.getSectorX();
     const sy = snake.getSectorY();
+    const r = getFoodSectorRange(snake);
 
-    for (let dx = -3; dx <= 3; dx++) {
-      for (let dy = -3; dy <= 3; dy++) {
-        const foods = this.food.getSectorFoods(sx + dx, sy + dy);
-        if (foods.length > 0) {
-          const pkt = encoder.encodeFoodSector(sx + dx, sy + dy, foods, player.protocolVersion);
-          player.send(pkt);
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dy = -r; dy <= r; dy++) {
+        const csx = sx + dx;
+        const csy = sy + dy;
+        const key = (csx << 8) | (csy & 0xFF);
+        if (!player.visibleFoodSectors.has(key)) {
+          player.visibleFoodSectors.add(key);
+          const foods = this.food.getSectorFoods(csx, csy);
+          if (foods.length > 0) {
+            player.send(encoder.encodeFoodSector(csx, csy, foods, player.protocolVersion));
+          }
         }
+      }
+    }
+  }
+
+  _updateFoodVisibility(player) {
+    const snake = player.snake;
+    if (!snake || !player.visibleFoodSectors) return;
+    const sx = snake.getSectorX();
+    const sy = snake.getSectorY();
+    const r = getFoodSectorRange(snake);
+
+    // Build set of currently visible sector keys
+    const nowVisible = new Set();
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dy = -r; dy <= r; dy++) {
+        const key = ((sx + dx) << 8) | ((sy + dy) & 0xFF);
+        nowVisible.add(key);
+      }
+    }
+
+    // Send newly visible sectors
+    for (const key of nowVisible) {
+      if (!player.visibleFoodSectors.has(key)) {
+        const csx = key >> 8;
+        const csy = key & 0xFF;
+        player.visibleFoodSectors.add(key);
+        const foods = this.food.getSectorFoods(csx, csy);
+        if (foods.length > 0) {
+          player.send(encoder.encodeFoodSector(csx, csy, foods, player.protocolVersion));
+        }
+      }
+    }
+
+    // Remove sectors that are no longer visible
+    for (const key of player.visibleFoodSectors) {
+      if (!nowVisible.has(key)) {
+        player.visibleFoodSectors.delete(key);
+        const csx = key >> 8;
+        const csy = key & 0xFF;
+        player.send(encoder.encodeSectorRemove(csx, csy));
       }
     }
   }
@@ -946,6 +1014,16 @@ class GameEngine {
       if (distance(px, py, x, y) < range) {
         player.send(encodeFn(player.protocolVersion));
       }
+    }
+  }
+
+  broadcastFoodSpawnVersioned(food) {
+    for (const player of this.players.values()) {
+      if (!player.snake || !player.snake.alive) continue;
+      if (!player.visibleFoodSectors) continue;
+      const key = (food.sx << 8) | (food.sy & 0xFF);
+      if (!player.visibleFoodSectors.has(key)) continue;
+      player.send(encoder.encodeFoodSpawn(food.sx, food.sy, food.rx, food.ry, food.cv, food.radius, player.protocolVersion));
     }
   }
 

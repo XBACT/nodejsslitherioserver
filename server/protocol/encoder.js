@@ -19,6 +19,8 @@ function initTables() {
   }
 }
 initTables();
+// +1 to raw value ensures no float rounding causes score to go negative
+const EMPTY_LB_FAM_RAW = Math.round(fmlts[1] / 3 * 16777215) + 1;
 
 function calcScore(sct, fam) {
   return Math.floor((fpsls[sct] + fam / fmlts[sct] - 1) * 15 - 5);
@@ -75,11 +77,12 @@ function encodeInitPacket(opts = {}) {
 
 function encodeSnakeSpawn(snake, protocolVersion) {
   protocolVersion = protocolVersion || config.PROTOCOL_VERSION;
-  const nameBytes = [];
+  const nameChars = [];
   for (let i = 0; i < snake.name.length && i < 24; i++) {
-    nameBytes.push(snake.name.charCodeAt(i));
+    nameChars.push(snake.name.charCodeAt(i));
   }
-  const nl = nameBytes.length;
+  const nl = nameChars.length;
+  const bytesPerChar = protocolVersion < 12 ? 2 : 1;
   const pts = snake.body;
 
   // Body length calculation depends
@@ -94,7 +97,7 @@ function encodeSnakeSpawn(snake, protocolVersion) {
     }
   }
 
-  let totalLen = 23 + nl + bodyLen;
+  let totalLen = 23 + nl * bytesPerChar + bodyLen;
   if (protocolVersion >= 11) totalLen += 1;
   if (protocolVersion >= 12) totalLen += 1;
 
@@ -112,7 +115,10 @@ function encodeSnakeSpawn(snake, protocolVersion) {
   w24(buf, m, Math.round(snake.x * 5)); m += 3;
   w24(buf, m, Math.round(snake.y * 5)); m += 3;
   buf[m++] = nl;
-  for (let i = 0; i < nl; i++) buf[m++] = nameBytes[i];
+  for (let i = 0; i < nl; i++) {
+    if (bytesPerChar === 2) buf[m++] = (nameChars[i] >> 8) & 0xFF;
+    buf[m++] = nameChars[i] & 0xFF;
+  }
   if (protocolVersion >= 11) {
     buf[m++] = 0;
   }
@@ -405,11 +411,16 @@ function encodeFoodEatSimple(sx, sy, rx, ry, protocolVersion) {
   return buf;
 }
 
-function encodeLeaderboard(myPos, rank, snakeCount, entries) {
+function encodeLeaderboard(myPos, rank, snakeCount, entries, protocolVersion) {
   // entries: [{sct, fam, cv, name}]
+  protocolVersion = protocolVersion || config.PROTOCOL_VERSION;
+  const bytesPerChar = protocolVersion < 12 ? 2 : 1;
+  // Only send actual entries; clients use while(m<alen) so they read exactly what's sent
+  const totalSlots = entries.length;
   let totalLen = 6;
-  for (const e of entries) {
-    totalLen += 7 + e.name.length;
+  for (let i = 0; i < totalSlots; i++) {
+    const nl = Math.min(entries[i].name.length, 24);
+    totalLen += 7 + nl * bytesPerChar;
   }
   const buf = new Uint8Array(totalLen);
   let m = 0;
@@ -417,14 +428,17 @@ function encodeLeaderboard(myPos, rank, snakeCount, entries) {
   buf[m++] = myPos;
   w16(buf, m, rank); m += 2;
   w16(buf, m, snakeCount); m += 2;
-  for (const e of entries) {
+  for (let i = 0; i < totalSlots; i++) {
+    const e = entries[i];
     w16(buf, m, e.sct); m += 2;
     w24(buf, m, Math.round(e.fam * 16777215)); m += 3;
     buf[m++] = e.cv % 9;
     const nl = Math.min(e.name.length, 24);
     buf[m++] = nl;
-    for (let i = 0; i < nl; i++) {
-      buf[m++] = e.name.charCodeAt(i);
+    for (let j = 0; j < nl; j++) {
+      const code = e.name.charCodeAt(j);
+      if (bytesPerChar === 2) buf[m++] = (code >> 8) & 0xFF;
+      buf[m++] = code & 0xFF;
     }
   }
   return buf.subarray(0, m);
@@ -448,10 +462,10 @@ function encodeSectorRemove(sx, sy) {
 }
 
 function encodeMinimap(size, data) {
-  // 'U' = variable-size minimap (size controls both resolution and client display)
+  // 'M' = minimap packet (matches vlither/original slither.io client protocol)
   const rle = rleEncode(data, size);
   const buf = new Uint8Array(3 + rle.length);
-  buf[0] = 0x55; // 'U'
+  buf[0] = 0x4D; // 'M'
   w16(buf, 1, size);
   buf.set(rle, 3);
   return buf;
@@ -519,39 +533,49 @@ function encodePreyEaten(preyId, snakeId) {
 }
 
 function rleEncode(data, size) {
+  // Encode minimap for vlither/original slither.io client:
+  //Scan right-to-left, bottom-to-top (matches client decode direction)
+  //Data byte (0-127): 7 cells packed in bits 6..0 (bit 6 = rightmost cell)
+  //Skip byte (129-254): skip (k-128) = 1..126 blank cells
+  //Skip long (255 + n): skip 126*n blank cells
   const result = [];
   let blanks = 0;
 
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; ) {
+  function flushBlanks() {
+    while (blanks >= 126) {
+      const n = Math.min(Math.floor(blanks / 126), 255);
+      result.push(0xFF);
+      result.push(n);
+      blanks -= 126 * n;
+    }
+    if (blanks > 0) {
+      result.push(128 + blanks);
+      blanks = 0;
+    }
+  }
+
+  for (let y = size - 1; y >= 0; y--) {
+    for (let x = size - 1; x >= 0;) {
+      const cells = Math.min(7, x + 1);
       let bits = 0;
       let allBlank = true;
-      for (let b = 6; b >= 0 && x + (6 - b) < size; b--) {
-        if (data[y * size + x + (6 - b)]) {
-          bits |= (1 << b);
+      for (let i = 0; i < cells; i++) {
+        if (data[y * size + (x - i)]) {
+          bits |= (1 << (6 - i));
           allBlank = false;
         }
       }
       if (allBlank) {
-        blanks += Math.min(7, size - x);
-        x += 7;
-        if (blanks >= 127) {
-          result.push(128 + 127);
-          blanks -= 127;
-        }
+        blanks += cells;
+        x -= cells;
       } else {
-        if (blanks > 0) {
-          result.push(128 + blanks);
-          blanks = 0;
-        }
+        flushBlanks();
         result.push(bits);
-        x += 7;
+        x -= cells;
       }
     }
   }
-  if (blanks > 0) {
-    result.push(128 + blanks);
-  }
+  flushBlanks();
   return new Uint8Array(result);
 }
 
@@ -598,6 +622,15 @@ function encodeHighscore(sct, fam, name, message) {
   return buf.subarray(0, m);
 }
 
+function encodeRadiusUpdate(fluxGrd) {
+  const buf = Buffer.allocUnsafe(4);
+  buf[0] = 0x7A; // 'z'
+  buf[1] = (fluxGrd >> 16) & 0xFF;
+  buf[2] = (fluxGrd >> 8) & 0xFF;
+  buf[3] = fluxGrd & 0xFF;
+  return buf;
+}
+
 module.exports = {
   encodeServerVersion,
   encodeInitPacket,
@@ -626,6 +659,7 @@ module.exports = {
   encodePreyEaten,
   bundlePackets,
   encodeHighscore,
+  encodeRadiusUpdate,
   calcScore,
   fpsls,
   fmlts,
