@@ -1,3 +1,6 @@
+> [!NOTE]
+> [Go Slither.io Server](https://github.com/XBACT/goslitherioserver)
+
 # Slither.io Server
 
 ![screenshot](asset/screenshot.png)
