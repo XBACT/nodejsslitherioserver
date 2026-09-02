@@ -1,5 +1,5 @@
 > [!NOTE]
-> [Go Slither.io Server](https://github.com/XBACT/goslitherioserver)
+> # [Go Slither.io Server](https://github.com/XBACT/goslitherioserver)
 
 # Slither.io Server
 
